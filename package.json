@@ -1,0 +1,19 @@
+{
+  "name": "arc-payment-starter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "wallet": "tsx --env-file=.env create-wallet.ts",
+    "watch": "tsx --env-file=.env watch-payment.ts",
+    "withdraw": "tsx --env-file=.env withdraw.ts"
+  },
+  "dependencies": {
+    "@circle-fin/developer-controlled-wallets": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
