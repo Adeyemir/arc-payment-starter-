@@ -13,8 +13,10 @@
 import { initiateDeveloperControlledWalletsClient } from '@circle-fin/developer-controlled-wallets';
 
 const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
+const TARGET_TOKEN = USDC_ADDRESS.toLowerCase();
 const POLL_INTERVAL_MS = 5000;
 const USDC_DECIMALS = 6;
+const SCALE = 10n ** BigInt(USDC_DECIMALS);
 
 const apiKey = process.env.CIRCLE_API_KEY;
 const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
@@ -37,12 +39,13 @@ const client = initiateDeveloperControlledWalletsClient({ apiKey, entitySecret }
 function parseUSDCAmount(amount: string): bigint {
   const [whole = '0', fraction = ''] = amount.split('.');
   const atomicFraction = fraction.padEnd(USDC_DECIMALS, '0').slice(0, USDC_DECIMALS);
-  return BigInt(whole) * 10n ** BigInt(USDC_DECIMALS) + BigInt(atomicFraction);
+  return BigInt(whole) * SCALE + BigInt(atomicFraction);
 }
 
-function format(balance: bigint): string {
-  const roundedCents = (balance + 5_000n) / 10_000n;
-  return `${roundedCents / 100n}.${(roundedCents % 100n).toString().padStart(2, '0')}`;
+function formatUSDC(balance: bigint): string {
+  const whole = balance / SCALE;
+  const fraction = (balance % SCALE).toString().padStart(USDC_DECIMALS, '0');
+  return `${whole}.${fraction}`;
 }
 
 console.log('\n=== WATCHING FOR USDC PAYMENTS ===\n');
@@ -55,10 +58,10 @@ const initialBalances = await client.getWalletTokenBalance({
   tokenAddresses: [USDC_ADDRESS],
 });
 const initialUSDC = initialBalances.data?.tokenBalances?.find(
-  ({ token }) => token.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase(),
+  ({ token }) => token.tokenAddress?.toLowerCase() === TARGET_TOKEN,
 );
 let lastBalance = parseUSDCAmount(initialUSDC?.amount ?? '0');
-console.log(`Starting balance: ${format(lastBalance)} USDC\n`);
+console.log(`Starting balance: ${formatUSDC(lastBalance)} USDC\n`);
 console.log('Send USDC to the wallet above. Watching for changes...\n');
 
 while (true) {
@@ -69,16 +72,18 @@ while (true) {
       tokenAddresses: [USDC_ADDRESS],
     });
     const usdc = balances.data?.tokenBalances?.find(
-      ({ token }) => token.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase(),
+      ({ token }) => token.tokenAddress?.toLowerCase() === TARGET_TOKEN,
     );
     const current = parseUSDCAmount(usdc?.amount ?? '0');
+    
     if (current > lastBalance) {
       const received = current - lastBalance;
       const now = new Date().toLocaleTimeString();
-      console.log(`[${now}] Payment received: ${format(received)} USDC`);
-      console.log(`[${now}] New balance     : ${format(current)} USDC\n`);
-      lastBalance = current;
+      console.log(`[${now}] Payment received: ${formatUSDC(received)} USDC`);
+      console.log(`[${now}] New balance     : ${formatUSDC(current)} USDC\n`);
     }
+    
+    lastBalance = current;
   } catch (err) {
     console.error('Poll error:', (err as Error).message);
   }

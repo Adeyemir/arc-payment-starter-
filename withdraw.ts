@@ -5,8 +5,7 @@
  * MERCHANT_ADDRESS on Arc Testnet. Gas sponsored by Circle Gas Station.
  *
  * Run: npm run withdraw
- *
- * Stretch goal for the workshop. Skip if your slot runs short.
+
  */
 
 import { initiateDeveloperControlledWalletsClient } from '@circle-fin/developer-controlled-wallets';
@@ -30,7 +29,9 @@ if (!merchantAddress) {
 }
 
 const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
+const TARGET_TOKEN = USDC_ADDRESS.toLowerCase();
 const USDC_DECIMALS = 6;
+const BUFFER_ATOMIC = 10_000n; // Exactly 0.01 USDC in atomic units
 
 const client = initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
 
@@ -41,10 +42,11 @@ function parseUSDCAmount(amount: string): bigint {
   return BigInt(whole) * 10n ** BigInt(USDC_DECIMALS) + BigInt(atomicFraction);
 }
 
-// Helper to format BigInt back to a 2-decimal string for the SDK payload
-function format(balance: bigint): string {
-  const roundedCents = (balance + 5_000n) / 10_000n;
-  return `${roundedCents / 100n}.${(roundedCents % 100n).toString().padStart(2, '0')}`;
+// Helper to format BigInt back to a full 6-decimal string for the SDK payload without rounding artifacts
+function formatUSDC(balance: bigint): string {
+  const whole = balance / 1_000_000n;
+  const fraction = (balance % 1_000_000n).toString().padStart(USDC_DECIMALS, '0');
+  return `${whole}.${fraction}`;
 }
 
 const balances = await client.getWalletTokenBalance({
@@ -53,19 +55,20 @@ const balances = await client.getWalletTokenBalance({
 });
 
 const usdcBalance = balances.data?.tokenBalances?.find(
-  ({ token }) => token.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase(),
+  ({ token }) => token.tokenAddress?.toLowerCase() === TARGET_TOKEN,
 );
 
 const balanceAtomic = parseUSDCAmount(usdcBalance?.amount ?? '0');
 
-if (balanceAtomic <= 0n) {
-  console.error('Wallet has no USDC to withdraw.');
+// Ensure wallet has enough balance to cover the buffer and avoid negative numbers
+if (balanceAtomic <= BUFFER_ATOMIC) {
+  console.error('Wallet balance is too small to withdraw after the 0.01 USDC safety buffer.');
   process.exit(1);
 }
 
-// Leave a 0.01 USDC buffer for gas accounting (10,000 atomic units)
-const sendAmountAtomic = balanceAtomic - 10_000n;
-const sendAmount = format(sendAmountAtomic);
+// Leave a 0.01 USDC safety buffer to avoid edge cases when withdrawing the full balance
+const sendAmountAtomic = balanceAtomic - BUFFER_ATOMIC;
+const sendAmount = formatUSDC(sendAmountAtomic);
 
 console.log(`\nWithdrawing ${sendAmount} USDC to ${merchantAddress}...\n`);
 
