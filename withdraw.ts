@@ -30,25 +30,43 @@ if (!merchantAddress) {
 }
 
 const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
+const USDC_DECIMALS = 6;
 
 const client = initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
+
+// Helper to safely parse SDK string amounts into BigInt to prevent precision loss
+function parseUSDCAmount(amount: string): bigint {
+  const [whole = '0', fraction = ''] = amount.split('.');
+  const atomicFraction = fraction.padEnd(USDC_DECIMALS, '0').slice(0, USDC_DECIMALS);
+  return BigInt(whole) * 10n ** BigInt(USDC_DECIMALS) + BigInt(atomicFraction);
+}
+
+// Helper to format BigInt back to a 2-decimal string for the SDK payload
+function format(balance: bigint): string {
+  const roundedCents = (balance + 5_000n) / 10_000n;
+  return `${roundedCents / 100n}.${(roundedCents % 100n).toString().padStart(2, '0')}`;
+}
 
 const balances = await client.getWalletTokenBalance({
   id: walletId,
   tokenAddresses: [USDC_ADDRESS],
 });
+
 const usdcBalance = balances.data?.tokenBalances?.find(
   ({ token }) => token.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase(),
 );
-const balanceUSDC = Number(usdcBalance?.amount ?? '0');
 
-if (balanceUSDC <= 0) {
+const balanceAtomic = parseUSDCAmount(usdcBalance?.amount ?? '0');
+
+if (balanceAtomic <= 0n) {
   console.error('Wallet has no USDC to withdraw.');
   process.exit(1);
 }
 
-// Leave a tiny buffer for gas accounting.
-const sendAmount = (balanceUSDC - 0.01).toFixed(2);
+// Leave a 0.01 USDC buffer for gas accounting (10,000 atomic units)
+const sendAmountAtomic = balanceAtomic - 10_000n;
+const sendAmount = format(sendAmountAtomic);
+
 console.log(`\nWithdrawing ${sendAmount} USDC to ${merchantAddress}...\n`);
 
 const response = await client.createTransaction({
