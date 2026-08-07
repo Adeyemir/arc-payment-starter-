@@ -9,21 +9,19 @@
  * Stretch goal for the workshop. Skip if your slot runs short.
  */
 
-import { randomUUID } from 'crypto';
 import { initiateDeveloperControlledWalletsClient } from '@circle-fin/developer-controlled-wallets';
 
 const apiKey = process.env.CIRCLE_API_KEY;
 const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
 const walletId = process.env.WALLET_ID;
-const walletAddress = process.env.WALLET_ADDRESS;
 const merchantAddress = process.env.MERCHANT_ADDRESS;
 
 if (!apiKey || !entitySecret) {
   console.error('Missing CIRCLE_API_KEY or CIRCLE_ENTITY_SECRET in .env');
   process.exit(1);
 }
-if (!walletId || !walletAddress) {
-  console.error('Missing WALLET_ID or WALLET_ADDRESS. Run `npm run wallet` first.');
+if (!walletId) {
+  console.error('Missing WALLET_ID. Run `npm run wallet` first.');
   process.exit(1);
 }
 if (!merchantAddress) {
@@ -31,30 +29,18 @@ if (!merchantAddress) {
   process.exit(1);
 }
 
-const RPC_URL = 'https://rpc.testnet.arc.network';
 const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
 
-function encodeBalanceOf(address: string): string {
-  return '0x70a08231' + address.slice(2).toLowerCase().padStart(64, '0');
-}
+const client = initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
 
-async function getUSDCBalance(address: string): Promise<bigint> {
-  const res = await fetch(RPC_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'eth_call',
-      params: [{ to: USDC_ADDRESS, data: encodeBalanceOf(address) }, 'latest'],
-    }),
-  });
-  const json = await res.json();
-  return BigInt(json.result || '0x0');
-}
-
-const balance = await getUSDCBalance(walletAddress);
-const balanceUSDC = Number(balance) / 1_000_000;
+const balances = await client.getWalletTokenBalance({
+  id: walletId,
+  tokenAddresses: [USDC_ADDRESS],
+});
+const usdcBalance = balances.data?.tokenBalances?.find(
+  ({ token }) => token.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase(),
+);
+const balanceUSDC = Number(usdcBalance?.amount ?? '0');
 
 if (balanceUSDC <= 0) {
   console.error('Wallet has no USDC to withdraw.');
@@ -65,15 +51,11 @@ if (balanceUSDC <= 0) {
 const sendAmount = (balanceUSDC - 0.01).toFixed(2);
 console.log(`\nWithdrawing ${sendAmount} USDC to ${merchantAddress}...\n`);
 
-const client = initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
-
 const response = await client.createTransaction({
-  idempotencyKey: randomUUID(),
   walletId,
   destinationAddress: merchantAddress,
   amount: [sendAmount],
   tokenAddress: USDC_ADDRESS,
-  blockchain: 'ARC-TESTNET',
   fee: { type: 'level', config: { feeLevel: 'MEDIUM' } },
 });
 

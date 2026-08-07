@@ -1,7 +1,7 @@
 /**
  * Step 2 - Listen for incoming USDC payments on Arc Testnet.
  *
- * Polls the USDC contract every 5 seconds for the wallet's balance.
+ * Polls Circle every 5 seconds for the wallet's USDC balance.
  * Prints a confirmation when the balance increases - that's a payment.
  *
  * Run: npm run watch
@@ -10,42 +10,39 @@
  * "Payment received" line print live.
  */
 
-const RPC_URL = 'https://rpc.testnet.arc.network';
+import { initiateDeveloperControlledWalletsClient } from '@circle-fin/developer-controlled-wallets';
+
 const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
 const POLL_INTERVAL_MS = 5000;
+const USDC_DECIMALS = 6;
 
+const apiKey = process.env.CIRCLE_API_KEY;
+const entitySecret = process.env.CIRCLE_ENTITY_SECRET;
+const walletId = process.env.WALLET_ID;
 const walletAddress = process.env.WALLET_ADDRESS;
-if (!walletAddress) {
-  console.error('WALLET_ADDRESS not set in .env');
-  console.error('Run `npm run wallet` first, then copy the printed address into .env');
+
+if (!apiKey || !entitySecret) {
+  console.error('CIRCLE_API_KEY or CIRCLE_ENTITY_SECRET not set in .env');
   process.exit(1);
 }
 
-// ERC-20 balanceOf(address) - selector + 32-byte padded address.
-function encodeBalanceOf(address: string): string {
-  const padded = address.slice(2).toLowerCase().padStart(64, '0');
-  return '0x70a08231' + padded;
+if (!walletId || !walletAddress) {
+  console.error('WALLET_ID or WALLET_ADDRESS not set in .env');
+  console.error('Run `npm run wallet` first, then copy the printed values into .env');
+  process.exit(1);
 }
 
-async function getUSDCBalance(address: string): Promise<bigint> {
-  const data = encodeBalanceOf(address);
-  const res = await fetch(RPC_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'eth_call',
-      params: [{ to: USDC_ADDRESS, data }, 'latest'],
-    }),
-  });
-  const json = await res.json();
-  return BigInt(json.result || '0x0');
+const client = initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
+
+function parseUSDCAmount(amount: string): bigint {
+  const [whole = '0', fraction = ''] = amount.split('.');
+  const atomicFraction = fraction.padEnd(USDC_DECIMALS, '0').slice(0, USDC_DECIMALS);
+  return BigInt(whole) * 10n ** BigInt(USDC_DECIMALS) + BigInt(atomicFraction);
 }
 
-// USDC has 6 decimals on Arc Testnet.
 function format(balance: bigint): string {
-  return (Number(balance) / 1_000_000).toFixed(2);
+  const roundedCents = (balance + 5_000n) / 10_000n;
+  return `${roundedCents / 100n}.${(roundedCents % 100n).toString().padStart(2, '0')}`;
 }
 
 console.log('\n=== WATCHING FOR USDC PAYMENTS ===\n');
@@ -53,14 +50,28 @@ console.log('Wallet  :', walletAddress);
 console.log('Chain   : Arc Testnet');
 console.log('Polling : every 5 seconds\n');
 
-let lastBalance = await getUSDCBalance(walletAddress);
+const initialBalances = await client.getWalletTokenBalance({
+  id: walletId,
+  tokenAddresses: [USDC_ADDRESS],
+});
+const initialUSDC = initialBalances.data?.tokenBalances?.find(
+  ({ token }) => token.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase(),
+);
+let lastBalance = parseUSDCAmount(initialUSDC?.amount ?? '0');
 console.log(`Starting balance: ${format(lastBalance)} USDC\n`);
 console.log('Send USDC to the wallet above. Watching for changes...\n');
 
 while (true) {
   await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   try {
-    const current = await getUSDCBalance(walletAddress);
+    const balances = await client.getWalletTokenBalance({
+      id: walletId,
+      tokenAddresses: [USDC_ADDRESS],
+    });
+    const usdc = balances.data?.tokenBalances?.find(
+      ({ token }) => token.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase(),
+    );
+    const current = parseUSDCAmount(usdc?.amount ?? '0');
     if (current > lastBalance) {
       const received = current - lastBalance;
       const now = new Date().toLocaleTimeString();
