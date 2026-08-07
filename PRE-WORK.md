@@ -13,7 +13,7 @@ Do this before you arrive. If you walk in with the steps below complete, you can
 ## Step 1: Clone the starter repo
 
 ```bash
-git clone https://github.com/Adeyemir/arc-payment-starter-.git
+git clone https://github.com/Adeyemir/arc-payment-starter.git
 cd arc-payment-starter-
 npm install
 cp .env.example .env
@@ -69,7 +69,7 @@ If you see "The provided entity secret is invalid" — your API key and entity s
 
 ## Step 4: Get some testnet USDC
 
-Visit https://faucet.testnet.arc.network. Paste your `WALLET_ADDRESS`. Request USDC.
+Visit https://faucet.circle.com . Paste your `WALLET_ADDRESS`. Request USDC.
 
 ## What to bring on the day
 
