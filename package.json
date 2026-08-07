@@ -9,6 +9,7 @@
     "withdraw": "tsx --env-file=.env withdraw.ts"
   },
   "dependencies": {
+    "@circle-fin/app-kit": "^1.7.0",
     "@circle-fin/developer-controlled-wallets": "^9.0.0"
   },
   "devDependencies": {

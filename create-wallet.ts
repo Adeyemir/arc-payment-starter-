@@ -50,5 +50,5 @@ console.log('WALLET_ID   :', wallet.id);
 console.log('WALLET_ADDRESS :', wallet.address);
 console.log('\nCopy WALLET_ID and WALLET_ADDRESS into .env.');
 console.log('Then send some USDC to WALLET_ADDRESS on Arc Testnet.');
-console.log('Faucet: https://faucet.testnet.arc.network\n');
+console.log('Faucet: https://faucet.circle.com\n');
 console.log('Once funded, run: npm run watch\n');
