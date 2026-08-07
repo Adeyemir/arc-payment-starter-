@@ -14,7 +14,7 @@ Do this before you arrive. If you walk in with the steps below complete, you can
 
 ```bash
 git clone https://github.com/Adeyemir/arc-payment-starter.git
-cd arc-payment-starter-
+cd arc-payment-starter
 npm install
 cp .env.example .env
 ```
