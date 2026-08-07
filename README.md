@@ -18,7 +18,7 @@ Everything runs from the CLI. No Solidity. No frontend.
 
 - Node.js v22 or later
 - A free Circle Developer account: https://console.circle.com
-- Some testnet USDC on Arc Testnet (faucet: https://faucet.testnet.arc.network)
+- Some testnet USDC on Arc Testnet (faucet: https://faucet.circle.com)
 - An EOA wallet (MetaMask, Rabby, anything) for the withdraw step
 
 ## Setup
